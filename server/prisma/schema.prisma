@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum Role {
+  CLIENT
+  ADMIN
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+// ─────────────────────────────────────────────
+// USERS  (klijenti i admini)
+// ─────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  phone        String?
+  role         Role     @default(CLIENT)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Ako je user ujedno i zaposleni
+  employee     Employee?
+
+  // Termini koje je klijent zakazao
+  appointments Appointment[]
+
+  @@index([email])
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────
+// EMPLOYEES  (radnici)
+// ─────────────────────────────────────────────
+
+model Employee {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  bio         String?
+  avatarUrl   String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workingHours WorkingHours[]
+  services     EmployeeService[]
+  appointments Appointment[]
+
+  @@index([isActive])
+  @@map("employees")
+}
+
+// ─────────────────────────────────────────────
+// SERVICES  (usluge)
+// ─────────────────────────────────────────────
+
+model Service {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  durationMin Int      // trajanje u minutima (npr. 30, 60, 90)
+  price       Decimal  @db.Decimal(10, 2)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employees    EmployeeService[]
+  appointments Appointment[]
+
+  @@index([isActive])
+  @@map("services")
+}
+
+// ─────────────────────────────────────────────
+// EMPLOYEE ↔ SERVICE  (many-to-many pivot)
+// ─────────────────────────────────────────────
+
+model EmployeeService {
+  employeeId String
+  serviceId  String
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  service  Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@id([employeeId, serviceId])
+  @@map("employee_services")
+}
+
+// ─────────────────────────────────────────────
+// WORKING HOURS  (radno vreme po danu)
+// ─────────────────────────────────────────────
+
+model WorkingHours {
+  id         String    @id @default(uuid())
+  employeeId String
+  dayOfWeek  DayOfWeek
+  startTime  String    // format "HH:MM" npr. "09:00"
+  endTime    String    // format "HH:MM" npr. "17:00"
+  isActive   Boolean   @default(true)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  // Jedan zaposleni može imati samo jedan zapis po danu
+  @@unique([employeeId, dayOfWeek])
+  @@index([employeeId, dayOfWeek, isActive])
+  @@map("working_hours")
+}
+
+// ─────────────────────────────────────────────
+// APPOINTMENTS  (termini)
+// ─────────────────────────────────────────────
+
+model Appointment {
+  id         String            @id @default(uuid())
+  clientId   String
+  employeeId String
+  serviceId  String
+  startTime  DateTime
+  endTime    DateTime          // startTime + service.durationMin
+  status     AppointmentStatus @default(PENDING)
+  notes      String?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  client   User     @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  service  Service  @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  // Indeksi za brzo pretraživanje slobodnih termina
+  @@index([employeeId, startTime, endTime])
+  @@index([clientId, startTime])
+  @@index([status])
+  @@map("appointments")
+}
