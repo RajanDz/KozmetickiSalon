@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import CalendarPicker from '../components/booking/CalendarPicker'
 import TimeSlotGrid from '../components/booking/TimeSlotGrid'
 import EmployeePicker from '../components/booking/EmployeePicker'
+import { useAuth } from '../context/AuthContext'
 
 const SERVICES = [
   { id: '1', name: 'Šišanje',         duration: 30,  price: 10, icon: '✂️' },
@@ -21,10 +22,11 @@ const EMPLOYEES = [
 type Step = 'service' | 'employee' | 'datetime' | 'form'
 const STEP_ORDER: Step[] = ['service', 'employee', 'datetime', 'form']
 
-interface Props { preselectedServiceId?: string | null }
+interface Props { preselectedServiceId?: string | null; onAuth?: () => void }
 
-export default function BookingPage({ preselectedServiceId }: Props) {
+export default function BookingPage({ preselectedServiceId, onAuth }: Props) {
   const { t } = useTranslation()
+  const { user } = useAuth()
 
   const [step, setStep]             = useState<Step>(preselectedServiceId ? 'employee' : 'service')
   const [serviceId, setServiceId]   = useState<string | null>(preselectedServiceId ?? null)
@@ -32,7 +34,39 @@ export default function BookingPage({ preselectedServiceId }: Props) {
   const [date, setDate]             = useState<Date | null>(null)
   const [time, setTime]             = useState<string | null>(null)
   const [form, setForm]             = useState({ firstName: '', lastName: '', phone: '', email: '', notes: '' })
+  const [forSelf, setForSelf]       = useState(true)
   const [submitted, setSubmitted]   = useState(false)
+
+  // Kad se korisnik učita i odabrao je "Moji podaci", popuni formu
+  useEffect(() => {
+    if (user && forSelf) {
+      setForm(f => ({
+        ...f,
+        firstName: user.firstName,
+        lastName:  user.lastName,
+        email:     user.email,
+        phone:     user.phone ?? f.phone,
+      }))
+    }
+  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleForSelf() {
+    if (user) {
+      setForm(f => ({
+        firstName: user.firstName,
+        lastName:  user.lastName,
+        email:     user.email,
+        phone:     user.phone ?? f.phone,
+        notes:     f.notes,
+      }))
+    }
+    setForSelf(true)
+  }
+
+  function handleForOther() {
+    setForm(f => ({ firstName: '', lastName: '', phone: '', email: '', notes: f.notes }))
+    setForSelf(false)
+  }
 
   const service  = SERVICES.find(s => s.id === serviceId)
   const employee = EMPLOYEES.find(e => e.id === employeeId)
@@ -159,14 +193,78 @@ export default function BookingPage({ preselectedServiceId }: Props) {
           {/* Korak 4: Forma */}
           {step === 'form' && (
             <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-6">{t('booking.your_details')}</h2>
+              <h2 className="text-xl font-bold text-gray-900 mb-4">{t('booking.your_details')}</h2>
+
+              {/* Promo bannerica — samo za neprijavljene */}
+              {!user && (
+                <div className="flex items-start gap-3 bg-rose-50 border border-rose-100 rounded-xl px-4 py-3 mb-5">
+                  <span className="text-rose-400 mt-0.5 shrink-0">✦</span>
+                  <p className="text-xs text-rose-700 leading-relaxed flex-1">
+                    Registracijom naloga možete pratiti vašu istoriju rezervacija i biti u toku sa online popustima.{' '}
+                    {onAuth && (
+                      <button onClick={onAuth} className="font-semibold underline underline-offset-2 hover:no-underline transition-all">
+                        Registruj se
+                      </button>
+                    )}
+                  </p>
+                </div>
+              )}
+
+              {/* Toggle — samo za prijavljene korisnike */}
+              {user && (
+                <div className="flex gap-2 mb-6 p-1 bg-gray-100 rounded-xl">
+                  <button
+                    onClick={handleForSelf}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${
+                      forSelf ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    <span>👤</span> Moji podaci
+                  </button>
+                  <button
+                    onClick={handleForOther}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${
+                      !forSelf ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    <span>👥</span> Za drugu osobu
+                  </button>
+                </div>
+              )}
+
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label={t('form.first_name')} value={form.firstName} onChange={v => setForm(f => ({ ...f, firstName: v }))} placeholder={t('form.placeholders.first_name')} />
-                  <Field label={t('form.last_name')}  value={form.lastName}  onChange={v => setForm(f => ({ ...f, lastName: v }))}  placeholder={t('form.placeholders.last_name')} />
+                  <Field
+                    label={t('form.first_name')}
+                    value={form.firstName}
+                    onChange={v => setForm(f => ({ ...f, firstName: v }))}
+                    placeholder={t('form.placeholders.first_name')}
+                    locked={user !== null && forSelf}
+                  />
+                  <Field
+                    label={t('form.last_name')}
+                    value={form.lastName}
+                    onChange={v => setForm(f => ({ ...f, lastName: v }))}
+                    placeholder={t('form.placeholders.last_name')}
+                    locked={user !== null && forSelf}
+                  />
                 </div>
-                <Field label={t('form.phone')}        value={form.phone}     onChange={v => setForm(f => ({ ...f, phone: v }))}     placeholder={t('form.placeholders.phone')} type="tel" />
-                <Field label={t('form.email_optional')} value={form.email}   onChange={v => setForm(f => ({ ...f, email: v }))}     placeholder={t('form.placeholders.email')} type="email" />
+                <Field
+                  label={t('form.phone')}
+                  value={form.phone}
+                  onChange={v => setForm(f => ({ ...f, phone: v }))}
+                  placeholder={t('form.placeholders.phone')}
+                  type="tel"
+                  locked={user !== null && forSelf && !!user.phone}
+                />
+                <Field
+                  label={t('form.email_optional')}
+                  value={form.email}
+                  onChange={v => setForm(f => ({ ...f, email: v }))}
+                  placeholder={t('form.placeholders.email')}
+                  type="email"
+                  locked={user !== null && forSelf}
+                />
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">{t('booking.notes_label')}</label>
                   <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
@@ -211,14 +309,27 @@ export default function BookingPage({ preselectedServiceId }: Props) {
   )
 }
 
-function Field({ label, value, onChange, placeholder, type = 'text' }: {
-  label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string
+function Field({ label, value, onChange, placeholder, type = 'text', locked = false }: {
+  label: string; value: string; onChange: (v: string) => void
+  placeholder?: string; type?: string; locked?: boolean
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
+      <div className="flex items-center justify-between mb-1">
+        <label className="block text-sm font-medium text-gray-700">{label}</label>
+        {locked && <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">iz naloga</span>}
+      </div>
+      <input
+        type={type}
+        value={value}
+        onChange={e => !locked && onChange(e.target.value)}
+        placeholder={placeholder}
+        readOnly={locked}
+        className={`w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none transition-colors ${
+          locked
+            ? 'bg-gray-50 border-gray-200 text-gray-500 cursor-default'
+            : 'border-gray-200 focus:ring-2 focus:ring-rose-300'
+        }`}
       />
     </div>
   )

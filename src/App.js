@@ -19,7 +19,6 @@ function AppContent() {
   function navigate(to) { setPage(to); window.scrollTo(0, 0); }
 
   function handleBook(serviceId) {
-    if (!user) { navigate('auth'); return; }
     setBookingServiceId(serviceId);
     navigate('booking');
   }
@@ -126,9 +125,7 @@ function AppContent() {
       {page === 'home'    && <HomePage onBook={handleBook} />}
       {page === 'auth'    && <AuthPage onSuccess={() => navigate('home')} />}
       {page === 'booking' && (
-        <ProtectedRoute redirectTo={() => navigate('auth')}>
-          <BookingPage preselectedServiceId={bookingServiceId} />
-        </ProtectedRoute>
+        <BookingPage preselectedServiceId={bookingServiceId} onAuth={() => navigate('auth')} />
       )}
     </div>
   );

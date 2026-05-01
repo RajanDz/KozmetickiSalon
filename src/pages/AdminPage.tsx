@@ -8,6 +8,7 @@ import { StatusKey } from '../design-system/tokens'
 import EditAppointmentModal, { AppointmentRow } from '../components/admin/EditAppointmentModal'
 import CreateAppointmentModal from '../components/admin/CreateAppointmentModal'
 import { EmployeeFormModal, ScheduleModal, RemoveEmployeeModal, EmployeeRow as EmpRow } from '../components/admin/EmployeeModal'
+import { ServiceFormModal, ServiceRow } from '../components/admin/ServiceModal'
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
@@ -369,13 +370,29 @@ function Employees() {
 }
 
 function Services() {
-  const [loading] = useState(false)
+  const [rows,     setRows]     = useState<ServiceRow[]>(SERVICES)
+  const [creating, setCreating] = useState(false)
+  const [editing,  setEditing]  = useState<ServiceRow | null>(null)
+
+  function handleCreate(row: ServiceRow) {
+    setRows(prev => [row, ...prev])
+    setCreating(false)
+  }
+
+  function handleEdit(row: ServiceRow) {
+    setRows(prev => prev.map(r => r.id === row.id ? row : r))
+    setEditing(null)
+  }
+
+  function toggleActive(id: string) {
+    setRows(prev => prev.map(r => r.id === id ? { ...r, active: !r.active } : r))
+  }
 
   return (
     <div className="space-y-4 max-w-4xl">
       <div className="flex items-center justify-between">
-        <p className="t-caption">{SERVICES.filter(s => s.active).length} aktivnih usluga</p>
-        <button className="btn-primary text-xs">+ Dodaj uslugu</button>
+        <p className="t-caption">{rows.filter(s => s.active).length} aktivnih usluga</p>
+        <button onClick={() => setCreating(true)} className="btn-primary text-xs">+ Dodaj uslugu</button>
       </div>
 
       <div className="card overflow-hidden">
@@ -390,50 +407,52 @@ function Services() {
               <th className="table-th" />
             </tr>
           </thead>
-          {loading ? (
-            <TableSkeleton rows={5} cols={6} />
-          ) : (
-            <tbody className="divide-y divide-gray-50">
-              {SERVICES.map(s => (
-                <tr key={s.id} className="table-row">
-                  <td className="table-td">
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-lg">{s.icon}</span>
-                      <span className="font-medium text-gray-800">{s.name}</span>
-                    </div>
-                  </td>
-                  <td className="table-td hidden sm:table-cell text-gray-500">{s.duration} min</td>
-                  <td className="table-td font-semibold text-gray-800">
-                    {s.price.toLocaleString()} <span className="text-gray-400 font-normal text-xs">€</span>
-                  </td>
-                  <td className="table-td hidden md:table-cell text-right">
-                    <span className="text-xs font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded-full">{s.bookings}×</span>
-                  </td>
-                  <td className="table-td">
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                      s.active ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-400'
-                    }`}>
-                      {s.active ? 'Aktivna' : 'Neaktivna'}
-                    </span>
-                  </td>
-                  <td className="table-td">
-                    <div className="flex items-center gap-1 justify-end">
-                      <button className="btn-ghost text-xs py-1 px-2">Uredi</button>
-                      <button className={`text-xs py-1 px-2 rounded-lg transition-colors ${
+          <tbody className="divide-y divide-gray-50">
+            {rows.map(s => (
+              <tr key={s.id} className="table-row">
+                <td className="table-td">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-lg">{s.icon}</span>
+                    <span className="font-medium text-gray-800">{s.name}</span>
+                  </div>
+                </td>
+                <td className="table-td hidden sm:table-cell text-gray-500">{s.duration} min</td>
+                <td className="table-td font-semibold text-gray-800">
+                  {s.price.toLocaleString()} <span className="text-gray-400 font-normal text-xs">€</span>
+                </td>
+                <td className="table-td hidden md:table-cell text-right">
+                  <span className="text-xs font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded-full">{s.bookings}×</span>
+                </td>
+                <td className="table-td">
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                    s.active ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-400'
+                  }`}>
+                    {s.active ? 'Aktivna' : 'Neaktivna'}
+                  </span>
+                </td>
+                <td className="table-td">
+                  <div className="flex items-center gap-1 justify-end">
+                    <button onClick={() => setEditing(s)} className="btn-ghost text-xs py-1 px-2">Uredi</button>
+                    <button
+                      onClick={() => toggleActive(s.id)}
+                      className={`text-xs py-1 px-2 rounded-lg transition-colors ${
                         s.active
                           ? 'text-gray-400 hover:text-red-500 hover:bg-red-50'
                           : 'text-emerald-600 hover:bg-emerald-50'
-                      }`}>
-                        {s.active ? 'Deaktiviraj' : 'Aktiviraj'}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          )}
+                      }`}
+                    >
+                      {s.active ? 'Deaktiviraj' : 'Aktiviraj'}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
         </table>
       </div>
+
+      {creating && <ServiceFormModal mode="create" onSave={handleCreate} onClose={() => setCreating(false)} />}
+      {editing   && <ServiceFormModal mode="edit" initial={editing} onSave={handleEdit} onClose={() => setEditing(null)} />}
     </div>
   )
 }
