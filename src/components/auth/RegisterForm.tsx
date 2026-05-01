@@ -99,7 +99,7 @@ export default function RegisterForm({ onSuccess, onLogin }: Props) {
     return (
       <div className="bg-white rounded-3xl shadow-sm p-8 max-w-sm w-full text-center">
         <div className="text-4xl mb-4">📧</div>
-        <h2 className="text-xl font-bold text-gray-900 mb-2">Proverite email</h2>
+        <h2 className="text-xl font-bold text-gray-900 mb-2">Provjerite email</h2>
         <p className="text-gray-500 text-sm mb-6">
           Poslali smo link za potvrdu na <strong>{form.email}</strong>.
           Kliknite na link da aktivirate nalog.

@@ -5,6 +5,9 @@ import StatusBadge from '../components/shared/StatusBadge'
 import EmptyState from '../components/shared/EmptyState'
 import { TableSkeleton, CardSkeleton } from '../components/shared/Skeleton'
 import { StatusKey } from '../design-system/tokens'
+import EditAppointmentModal, { AppointmentRow } from '../components/admin/EditAppointmentModal'
+import CreateAppointmentModal from '../components/admin/CreateAppointmentModal'
+import { EmployeeFormModal, ScheduleModal, RemoveEmployeeModal, EmployeeRow as EmpRow } from '../components/admin/EmployeeModal'
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
@@ -110,11 +113,28 @@ function Overview() {
 
 function Appointments() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [loading] = useState(false)
+  const [loading]  = useState(false)
+  const [rows, setRows]       = useState<AppointmentRow[]>(APPOINTMENTS)
+  const [editing, setEditing] = useState<AppointmentRow | null>(null)
+  const [creating, setCreating] = useState(false)
 
   const filtered = statusFilter === 'all'
-    ? APPOINTMENTS
-    : APPOINTMENTS.filter(a => a.status === statusFilter)
+    ? rows
+    : rows.filter(a => a.status === statusFilter)
+
+  function handleSave(updated: AppointmentRow) {
+    setRows(prev => prev.map(r => r.id === updated.id ? updated : r))
+    setEditing(null)
+  }
+
+  function handleCancel(id: string) {
+    setRows(prev => prev.map(r => r.id === id ? { ...r, status: 'CANCELLED' as StatusKey } : r))
+  }
+
+  function handleCreate(row: AppointmentRow) {
+    setRows(prev => [row, ...prev])
+    setCreating(false)
+  }
 
   return (
     <div className="space-y-4 max-w-6xl">
@@ -145,7 +165,7 @@ function Appointments() {
             </button>
           ))}
         </div>
-        <button className="btn-primary text-xs">+ Nova rezervacija</button>
+        <button onClick={() => setCreating(true)} className="btn-primary text-xs">+ Nova rezervacija</button>
       </div>
 
       {/* Tabela */}
@@ -158,7 +178,7 @@ function Appointments() {
                 <th className="table-th">Usluga</th>
                 <th className="table-th hidden md:table-cell">Zaposleni</th>
                 <th className="table-th hidden lg:table-cell">Datum</th>
-                <th className="table-th">Vreme</th>
+                <th className="table-th">Vrijeme</th>
                 <th className="table-th">Status</th>
                 <th className="table-th text-right">Cijena</th>
                 <th className="table-th" />
@@ -198,9 +218,21 @@ function Appointments() {
                     </td>
                     <td className="table-td">
                       <div className="flex items-center gap-1 justify-end">
-                        <button className="btn-ghost text-xs py-1 px-2">Detalji</button>
+                        {a.status !== 'CANCELLED' && a.status !== 'COMPLETED' && (
+                          <button
+                            onClick={() => setEditing(a)}
+                            className="btn-ghost text-xs py-1 px-2"
+                          >
+                            Uredi
+                          </button>
+                        )}
                         {a.status !== 'CANCELLED' && (
-                          <button className="btn-danger text-xs py-1 px-2">Otkaži</button>
+                          <button
+                            onClick={() => handleCancel(a.id)}
+                            className="btn-danger text-xs py-1 px-2"
+                          >
+                            Otkaži
+                          </button>
                         )}
                       </div>
                     </td>
@@ -215,86 +247,123 @@ function Appointments() {
           <div className="flex items-center gap-1">
             <button className="btn-ghost text-xs py-1">← Preth.</button>
             <span className="text-xs text-gray-400 px-2">1 / 1</span>
-            <button className="btn-ghost text-xs py-1 opacity-40" disabled>Sledeća →</button>
+            <button className="btn-ghost text-xs py-1 opacity-40" disabled>Sljedeća →</button>
           </div>
         </div>
       </div>
+
+      {editing && (
+        <EditAppointmentModal
+          appointment={editing}
+          onSave={handleSave}
+          onCancel={() => setEditing(null)}
+        />
+      )}
+
+      {creating && (
+        <CreateAppointmentModal
+          onSave={handleCreate}
+          onCancel={() => setCreating(false)}
+        />
+      )}
     </div>
   )
 }
 
 function Employees() {
-  const [loading] = useState(false)
+  const [rows,      setRows]      = useState<EmpRow[]>(EMPLOYEES)
+  const [creating,  setCreating]  = useState(false)
+  const [editing,   setEditing]   = useState<EmpRow | null>(null)
+  const [schedule,  setSchedule]  = useState<EmpRow | null>(null)
+  const [removing,  setRemoving]  = useState<EmpRow | null>(null)
+
+  function handleCreate(row: EmpRow) {
+    setRows(prev => [row, ...prev])
+    setCreating(false)
+  }
+
+  function handleEdit(row: EmpRow) {
+    setRows(prev => prev.map(r => r.id === row.id ? row : r))
+    setEditing(null)
+  }
+
+  function handleRemove() {
+    if (!removing) return
+    setRows(prev => prev.map(r => r.id === removing.id ? { ...r, active: false } : r))
+    setRemoving(null)
+  }
 
   return (
     <div className="space-y-4 max-w-6xl">
       <div className="flex items-center justify-between">
-        <p className="t-caption">{EMPLOYEES.filter(e => e.active).length} aktivnih od {EMPLOYEES.length}</p>
-        <button className="btn-primary text-xs">+ Dodaj zaposlenog</button>
+        <p className="t-caption">{rows.filter(e => e.active).length} aktivnih od {rows.length}</p>
+        <button onClick={() => setCreating(true)} className="btn-primary text-xs">+ Dodaj zaposlenog</button>
       </div>
 
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {[1,2,3].map(i => <CardSkeleton key={i} />)}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {EMPLOYEES.map(e => (
-            <div key={e.id} className={`card p-5 ${!e.active ? 'opacity-60' : ''}`}>
-              {/* Header */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-700 font-bold flex items-center justify-center text-sm">
-                    {e.initials}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{e.name}</p>
-                    <p className="text-xs text-gray-400">{e.role}</p>
-                  </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {rows.map(e => (
+          <div key={e.id} className={`card p-5 transition-opacity ${!e.active ? 'opacity-50' : ''}`}>
+            {/* Header */}
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-700 font-bold flex items-center justify-center text-sm shrink-0">
+                  {e.initials}
                 </div>
-                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                  e.active ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-400'
-                }`}>
-                  {e.active ? 'Aktivan' : 'Neaktivan'}
-                </span>
-              </div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-3 gap-2 mb-4">
-                <div className="bg-gray-50 rounded-lg p-2.5 text-center">
-                  <p className="text-base font-bold text-gray-900">{e.appts}</p>
-                  <p className="text-[10px] text-gray-400">termina</p>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-2.5 text-center">
-                  <p className="text-base font-bold text-gray-900">{e.revenue ? `${(e.revenue/1000).toFixed(0)}k` : '—'}</p>
-                  <p className="text-[10px] text-gray-400">€</p>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-2.5 text-center">
-                  <p className="text-base font-bold text-gray-900">{e.utilization}%</p>
-                  <p className="text-[10px] text-gray-400">iskoriš.</p>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">{e.name}</p>
+                  <p className="text-xs text-gray-400">{e.role}</p>
                 </div>
               </div>
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+                e.active ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-400'
+              }`}>
+                {e.active ? 'Aktivan' : 'Neaktivan'}
+              </span>
+            </div>
 
-              {/* Usluge */}
-              {e.services.length > 0 ? (
-                <div className="flex flex-wrap gap-1 mb-4">
-                  {e.services.map(s => (
-                    <span key={s} className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{s}</span>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-gray-300 mb-4 italic">Nema dodijeljenih usluga</p>
-              )}
-
-              {/* Akcije */}
-              <div className="flex gap-2 pt-3 border-t border-gray-100">
-                <button className="btn-secondary text-xs flex-1 py-1.5">Raspored</button>
-                <button className="btn-secondary text-xs flex-1 py-1.5">Uredi</button>
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              <div className="bg-gray-50 rounded-lg p-2.5 text-center">
+                <p className="text-base font-bold text-gray-900">{e.appts}</p>
+                <p className="text-[10px] text-gray-400">termina</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2.5 text-center">
+                <p className="text-base font-bold text-gray-900">{e.revenue ? `${e.revenue}` : '—'}</p>
+                <p className="text-[10px] text-gray-400">€</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2.5 text-center">
+                <p className="text-base font-bold text-gray-900">{e.utilization}%</p>
+                <p className="text-[10px] text-gray-400">iskoriš.</p>
               </div>
             </div>
-          ))}
-        </div>
-      )}
+
+            {/* Usluge */}
+            {e.services.length > 0 ? (
+              <div className="flex flex-wrap gap-1 mb-4">
+                {e.services.map(s => (
+                  <span key={s} className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{s}</span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-300 mb-4 italic">Nema dodijeljenih usluga</p>
+            )}
+
+            {/* Akcije */}
+            <div className="flex gap-2 pt-3 border-t border-gray-100">
+              <button onClick={() => setSchedule(e)} className="btn-secondary text-xs flex-1 py-1.5">Raspored</button>
+              <button onClick={() => setEditing(e)}  className="btn-secondary text-xs flex-1 py-1.5">Uredi</button>
+              {e.active && (
+                <button onClick={() => setRemoving(e)} className="btn-danger text-xs px-2.5 py-1.5">✕</button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {creating && <EmployeeFormModal mode="create" onSave={handleCreate} onClose={() => setCreating(false)} />}
+      {editing   && <EmployeeFormModal mode="edit" initial={editing} onSave={handleEdit} onClose={() => setEditing(null)} />}
+      {schedule  && <ScheduleModal employee={schedule} onClose={() => setSchedule(null)} />}
+      {removing  && <RemoveEmployeeModal employee={removing} onConfirm={handleRemove} onClose={() => setRemoving(null)} />}
     </div>
   )
 }
